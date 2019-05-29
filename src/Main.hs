@@ -1,7 +1,5 @@
 module Main where
 
-import           Data.Maybe                           (fromMaybe)
-import           Debug.Trace
 import qualified Graphics.Gloss.Data.Point.Arithmetic as G
 import qualified Graphics.Gloss.Interface.Pure.Game   as G
 import           System.Random
@@ -19,8 +17,8 @@ segmentSizeF :: Float
 segmentSizeF = fromIntegral segmentSize
 
 foodColor, snakeColor :: G.Color
-foodColor = violet
-snakeColor = orange
+foodColor = G.violet
+snakeColor = G.orange
 
 type Position = G.Point
 
