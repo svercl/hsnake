@@ -35,7 +35,7 @@ data Direction
   | GoingRight
   | GoingNowhere
 
-fromDirection :: Direction -> G.Point
+fromDirection :: Direction -> G.Vector
 fromDirection dir =
   case dir of
     GoingLeft    -> (-1.0, 0.0)
@@ -51,7 +51,7 @@ data Action
   = Direction Direction
   | Developer Developer
 
-type Snake = [Position]
+type Snake = G.Path
 
 data World
   = World
@@ -110,8 +110,9 @@ playingToPicture world = G.pictures [snakePicture, foodPicture]
   where
     segmentPicture x y = G.translate (x * segmentSizeF) (y * segmentSizeF) $ G.rectangleSolid segmentSizeF segmentSizeF
     snakePicture = G.pictures $ map (\(x, y) -> G.color snakeColor $ segmentPicture x y) (world ^. snakePositions)
-    (foodX, foodY) = foodPosition world
-    foodPicture = G.color foodColor $ segmentPicture foodX foodY
+    foodPos = world & foodPosition
+    -- TODO(bsvercl): _x and _y aliases for _1 and _2
+    foodPicture = G.color foodColor $ segmentPicture (foodPos ^. _1) (foodPos ^. _2)
     segmentSizeF = fromIntegral segmentSize
 
 mainMenuToPicture :: G.Picture
@@ -138,7 +139,7 @@ playingEvent (G.EventKey key state _ _) world
   | otherwise = world
   where
     keyDown what = key == what && state == G.Down
-    switchDirection dir = world & snakeDirection %~ flip maybeChangeDirection dir --world & snakeDirection .~ maybeChangeDirection (world ^. snakeDirection) dir
+    switchDirection dir = world & snakeDirection %~ flip maybeChangeDirection dir
 playingEvent _ w = w
 
 mainMenuEvent :: G.Event -> World -> World
