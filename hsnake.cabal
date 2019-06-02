@@ -21,3 +21,4 @@ executable hsnake
                      , gloss
                      , lens
                      , random
+                     , containers

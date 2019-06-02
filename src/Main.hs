@@ -1,10 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Main where
 
+import           Control.Lens
+import qualified Data.Map.Strict as M
+import           Data.Map.Strict (Map)
 import qualified Graphics.Gloss.Data.Point.Arithmetic as G
 import qualified Graphics.Gloss.Interface.Pure.Game   as G
-import           System.Random
-import           Control.Lens
+import           System.Random (getStdGen, randomRs)
 
 screenWidth, screenHeight :: Int
 screenWidth = 800
@@ -32,7 +34,6 @@ data Direction
   | GoingUp
   | GoingRight
   | GoingNowhere
-  deriving (Eq)
 
 fromDirection :: Direction -> G.Point
 fromDirection dir =
@@ -43,23 +44,40 @@ fromDirection dir =
     GoingRight   -> (1.0, 0.0)
     GoingNowhere -> (0.0, 0.0)
 
+data Developer
+  = MoveFood
+
+data Action
+  = Direction Direction
+  | Developer Developer
+
+type Snake = [Position]
+
 data World
   = World
-  { _playerPositions       :: [Position]
-  , _playerDirection       :: Direction
+  { _snake                 :: Snake
+  , _snakeDirection        :: Direction
   , _possibleFoodPositions :: [Position]
-  , _currentFoodPosition   :: Int
+  , _currentFoodIndex      :: Int
   , _currentScene          :: Scene
+  , _keyBinds              :: M.Map G.Key Action
+  , _pressedKeys           :: [G.Key] -- TODO(bsvercl): Use something more efficient.
   }
 
 makeLenses ''World
 
 mkWorld :: Position -> [Position] -> World
-mkWorld playerPosition foodPositions
-  = World [playerPosition] GoingNowhere foodPositions 0 MainMenu
+mkWorld playerPosition foodPositions =
+  World [playerPosition] GoingNowhere foodPositions 0 MainMenu initialKeybinds []
+  where initialKeybinds = M.fromList [ (G.Char 'w', Direction GoingUp)
+                                     , (G.Char 's', Direction GoingDown)
+                                     , (G.Char 'a', Direction GoingLeft)
+                                     , (G.Char 'd', Direction GoingRight)
+                                     , (G.Char 'q', Developer MoveFood)
+                                     ]
 
 playerPosition :: World -> Position
-playerPosition world = head $ world ^. playerPositions
+playerPosition world = head $ world ^. snake
 
 maybeChangeDirection :: Direction -> Direction -> Direction
 maybeChangeDirection currentDirection newDirection =
@@ -71,11 +89,11 @@ maybeChangeDirection currentDirection newDirection =
     _ -> newDirection
 
 advance :: World -> Bool -> World
-advance world ateFood = world & playerPositions .~ newPositions
+advance world ateFood = world & snake .~ newSnake
   where
-    newHead = (playerPosition world) G.+ fromDirection (world ^. playerDirection)
-    positions = world ^. playerPositions
-    newPositions = newHead : if ateFood then positions else init positions
+    newHead = playerPosition world G.+ fromDirection (world ^. snakeDirection)
+    positions = world ^. snake
+    newSnake = newHead : if ateFood then positions else init positions
 
 -- Switches to specified Scene
 switchTo :: World -> Scene -> World
@@ -83,7 +101,7 @@ switchTo world newScene = world & currentScene .~ newScene
 
 foodPosition :: World -> Position
 -- TODO: Should be possible to use ^@. this funky looking thing
-foodPosition world = (world ^. possibleFoodPositions) !! (world ^. currentFoodPosition)
+foodPosition world = (world ^. possibleFoodPositions) !! (world ^. currentFoodIndex)
 
 worldToPicture :: World -> G.Picture
 worldToPicture world =
@@ -96,7 +114,7 @@ playingToPicture :: World -> G.Picture
 playingToPicture world = G.pictures [snakePicture, foodPicture]
   where
     segmentPicture x y = G.translate (x * segmentSizeF) (y * segmentSizeF) $ G.rectangleSolid segmentSizeF segmentSizeF
-    snakePicture = G.pictures $ map (\(x, y) -> G.color snakeColor $ segmentPicture x y) (world ^. playerPositions)
+    snakePicture = G.pictures $ map (\(x, y) -> G.color snakeColor $ segmentPicture x y) (world ^. snake)
     (foodX, foodY) = foodPosition world
     foodPicture = G.color foodColor $ segmentPicture foodX foodY
     segmentSizeF = fromIntegral segmentSize
@@ -120,12 +138,12 @@ playingEvent (G.EventKey key state _ _) world
   | keyDown $ G.Char 's'              = switchDirection GoingDown
   | keyDown $ G.Char 'a'              = switchDirection GoingLeft
   | keyDown $ G.Char 'd'              = switchDirection GoingRight
-  | keyDown $ G.Char 'q'              = world & currentFoodPosition %~ succ
+  | keyDown $ G.Char 'q'              = world & currentFoodIndex %~ succ
   | keyDown $ G.SpecialKey G.KeySpace = switchDirection GoingNowhere
   | otherwise = world
   where
     keyDown what = key == what && state == G.Down
-    switchDirection dir = world & playerDirection .~ maybeChangeDirection (world ^. playerDirection) dir
+    switchDirection dir = world & snakeDirection %~ flip maybeChangeDirection dir --world & snakeDirection .~ maybeChangeDirection (world ^. snakeDirection) dir
 playingEvent _ w = w
 
 mainMenuEvent :: G.Event -> World -> World
@@ -149,11 +167,12 @@ handleTime delta world =
 
 playingTime :: Float -> World -> World
 playingTime delta world =
-  let foodAte = world ^. to playerPosition == world ^. to foodPosition
-      -- I wish we were inside of a Monad
-      foodPosition' = if foodAte then world ^. currentFoodPosition + 1 else world ^. currentFoodPosition
-      world' = advance world foodAte
-      world'' = world' & currentFoodPosition .~ foodPosition'
+  let
+    foodAte = world ^. to playerPosition == world ^. to foodPosition
+    -- I wish we were inside of a Monad
+    foodIndex' = if foodAte then world ^. currentFoodIndex + 1 else world ^. currentFoodIndex
+    world' = advance world foodAte
+    world'' = world' & currentFoodIndex .~ foodIndex'
   in world''
 
 mainMenuTime :: World -> World
@@ -164,6 +183,7 @@ ateSelfTime w = w
 
 main :: IO ()
 main = do
+  -- TODO(bsvercl): This is ugly, but it works.
   gen <- getStdGen
   let
     maxWidth = (segmentsAcrossWidth `div` 2) - 1
