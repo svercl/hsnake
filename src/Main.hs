@@ -4,8 +4,7 @@ module Main where
 import qualified Graphics.Gloss.Data.Point.Arithmetic as G
 import qualified Graphics.Gloss.Interface.Pure.Game   as G
 import           System.Random
-
-import Control.Lens
+import           Control.Lens
 
 screenWidth, screenHeight :: Int
 screenWidth = 800
