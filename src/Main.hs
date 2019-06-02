@@ -17,6 +17,11 @@ foodColor, snakeColor :: G.Color
 foodColor = G.violet
 snakeColor = G.orange
 
+data Scene
+  = Playing
+  | MainMenu
+  | AteSelf
+
 type Position = G.Point
 
 data Direction
@@ -72,13 +77,24 @@ data World
   { snake                 :: Snake
   , possibleFoodPositions :: [Position]
   , currentFoodPosition   :: Int
+  , currentScene :: Scene
   }
 
+switchTo :: World -> Scene -> World
+switchTo w newScene = w { currentScene = newScene }
+
 foodPosition :: World -> Position
-foodPosition (World _ possible current) = possible !! current
+foodPosition (World _ possible current _) = possible !! current
 
 worldToPicture :: World -> G.Picture
-worldToPicture w@(World (Snake snakePositions _) _ _) = G.pictures [snakePicture, foodPicture]
+worldToPicture w@(World _ _ _ currentScene) =
+  case currentScene of
+    Playing -> playingToPicture w
+    MainMenu -> mainMenuToPicture
+    AteSelf -> ateSelfToPicture
+
+playingToPicture :: World -> G.Picture
+playingToPicture w@(World (Snake snakePositions _) _ _ _) = G.pictures [snakePicture, foodPicture]
   where
     segmentPicture x y = G.translate (x * segmentSizeF) (y * segmentSizeF) $ G.rectangleSolid segmentSizeF segmentSizeF
     snakePicture = G.pictures $ map (\(x, y) -> G.color snakeColor $ segmentPicture x y) snakePositions
@@ -86,9 +102,22 @@ worldToPicture w@(World (Snake snakePositions _) _ _) = G.pictures [snakePicture
     foodPicture = G.color foodColor $ segmentPicture foodX foodY
     segmentSizeF = fromIntegral segmentSize
 
+mainMenuToPicture :: G.Picture
+mainMenuToPicture = G.translate (-200) 0 $ G.scale 0.2 0.2 $ G.text "Welcome to Snake. Press SPACE to start."
+
+ateSelfToPicture :: G.Picture
+ateSelfToPicture = G.translate (-200) 0 $ G.scale 0.2 0.2 $ G.text "You ate yourself! Why would you do that??"
+
 handleEvent :: G.Event -> World -> World
+handleEvent evt w@(World _ _ _ currentScene) =
+  case currentScene of
+    Playing -> playingEvent evt w
+    MainMenu -> mainMenuEvent evt w
+    AteSelf -> ateSelfEvent evt w
+
+playingEvent :: G.Event -> World -> World
 -- TODO: I swear this can be made much nicer
-handleEvent (G.EventKey key state _ _) w@(World snake _ currentFoodPosition)
+playingEvent (G.EventKey key state _ _) w@(World snake _ currentFoodPosition _)
   | keyDown $ G.Char 'w'              = w { snake = changeDirection snake GoingUp }
   | keyDown $ G.Char 's'              = w { snake = changeDirection snake GoingDown }
   | keyDown $ G.Char 'a'              = w { snake = changeDirection snake GoingLeft }
@@ -98,17 +127,41 @@ handleEvent (G.EventKey key state _ _) w@(World snake _ currentFoodPosition)
   | otherwise = w
   where
     keyDown what = key == what && state == G.Down
--- Do nothing
-handleEvent _ w = w
+playingEvent _ w = w
+
+mainMenuEvent :: G.Event -> World -> World
+mainMenuEvent (G.EventKey key _ _ _) w
+  | key == G.SpecialKey G.KeySpace = switchTo w Playing
+  | otherwise = w
+mainMenuEvent _ w = w
+
+ateSelfEvent :: G.Event -> World -> World
+ateSelfEvent (G.EventKey key _ _ _) w
+  | key == G.SpecialKey G.KeySpace = switchTo w MainMenu
+  | otherwise = w
+ateSelfEvent _ w = w
 
 handleTime :: Float -> World -> World
-handleTime delta w@(World snake possibleFoodPositions currentFoodPosition) =
+handleTime delta w@(World _ _ _ currentScene) =
+  case currentScene of
+    Playing -> playingTime delta w
+    MainMenu -> mainMenuTime w
+    AteSelf -> ateSelfTime w
+
+playingTime :: Float -> World -> World
+playingTime delta w@(World snake possibleFoodPositions currentFoodPosition currentScene) =
   let
     foodAte = snakePosition snake == foodPosition w
     newFoodPosition = if foodAte then currentFoodPosition + 1 else currentFoodPosition
   in w { snake = advanceSnake snake foodAte
        , currentFoodPosition = newFoodPosition
        }
+
+mainMenuTime :: World -> World
+mainMenuTime w = w
+
+ateSelfTime :: World -> World
+ateSelfTime w = w
 
 main :: IO ()
 main = do
@@ -122,6 +175,7 @@ main = do
     initialWorld = World { snake = mkSnake (0.0, 0.0)
                          , possibleFoodPositions = foodPositions
                          , currentFoodPosition = 0
+                         , currentScene = MainMenu
                          }
     initialDisplay = G.InWindow "Snake" (screenWidth, screenHeight) (0, 0)
   G.play initialDisplay G.white 10 initialWorld worldToPicture handleEvent handleTime
