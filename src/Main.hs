@@ -99,15 +99,15 @@ maybeChangeDirection currentDirection newDirection =
 -- I'm sure there's a better way; I just haven't found one quite yet.
 -- NOTE: HERE BE DRAGONS
 wrap :: Position -> Position
-wrap (x, y) = ( if x >= halfSegX
+wrap (x, y) = ( if x >= halfSegX + 1
                 then -halfSegX
                 else if x <= -halfSegX
-                then halfSegX
+                then halfSegX - 1
                 else x
-              , if y >= halfSegY
+              , if y >= halfSegY + 1
                 then -halfSegY
                 else if y <= -halfSegY
-                then halfSegY
+                then halfSegY - 1
                 else y
               )
   where
