@@ -28,6 +28,12 @@ data Scene
 
 type Position = G.Point
 
+_x :: Field1 s t a b => Lens s t a b
+_x = _1
+
+_y :: Field2 s t a b => Lens s t a b
+_y = _2
+
 data Direction
   = GoingLeft
   | GoingDown
@@ -111,8 +117,7 @@ playingToPicture world = G.pictures [snakePicture, foodPicture]
     segmentPicture x y = G.translate (x * segmentSizeF) (y * segmentSizeF) $ G.rectangleSolid segmentSizeF segmentSizeF
     snakePicture = G.pictures $ map (\(x, y) -> G.color snakeColor $ segmentPicture x y) (world ^. snakePositions)
     foodPos = world & foodPosition
-    -- TODO(bsvercl): _x and _y aliases for _1 and _2
-    foodPicture = G.color foodColor $ segmentPicture (foodPos ^. _1) (foodPos ^. _2)
+    foodPicture = G.color foodColor $ segmentPicture (foodPos ^. _x) (foodPos ^. _y)
     segmentSizeF = fromIntegral segmentSize
 
 mainMenuToPicture :: G.Picture
