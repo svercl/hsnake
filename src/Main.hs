@@ -68,8 +68,8 @@ advanceSnake snake ateFood = snake & positions .~ newPositions
 changeDirection :: Snake -> Direction -> Snake
 changeDirection snake newDirection
   | eitherEqual GoingLeft GoingRight ||
-    eitherEqual GoingUp GoingDown    = snake
-  | otherwise                        = snake & direction .~ newDirection
+    eitherEqual GoingUp GoingDown = snake
+  | otherwise                     = snake & direction .~ newDirection
   where
     eitherEqual this that =
       (currentDirection == this && newDirection == that) ||
@@ -84,7 +84,7 @@ data World
   { _snake                 :: Snake
   , _possibleFoodPositions :: [Position]
   , _currentFoodPosition   :: Int
-  , _currentScene :: Scene
+  , _currentScene          :: Scene
   }
 
 makeLenses ''World
@@ -104,11 +104,11 @@ worldToPicture w@(World _ _ _ currentScene) =
     AteSelf -> ateSelfToPicture
 
 playingToPicture :: World -> G.Picture
-playingToPicture w@(World (Snake snakePositions _) _ _ _) = G.pictures [snakePicture, foodPicture]
+playingToPicture world = G.pictures [snakePicture, foodPicture]
   where
     segmentPicture x y = G.translate (x * segmentSizeF) (y * segmentSizeF) $ G.rectangleSolid segmentSizeF segmentSizeF
-    snakePicture = G.pictures $ map (\(x, y) -> G.color snakeColor $ segmentPicture x y) snakePositions
-    (foodX, foodY) = foodPosition w
+    snakePicture = G.pictures $ map (\(x, y) -> G.color snakeColor $ segmentPicture x y) (world ^. (snake . positions))
+    (foodX, foodY) = foodPosition world
     foodPicture = G.color foodColor $ segmentPicture foodX foodY
     segmentSizeF = fromIntegral segmentSize
 
@@ -119,14 +119,13 @@ ateSelfToPicture :: G.Picture
 ateSelfToPicture = G.translate (-200) 0 $ G.scale 0.2 0.2 $ G.text "You ate yourself! Why would you do that??"
 
 handleEvent :: G.Event -> World -> World
-handleEvent evt w@(World _ _ _ currentScene) =
-  case currentScene of
-    Playing -> playingEvent evt w
-    MainMenu -> mainMenuEvent evt w
-    AteSelf -> ateSelfEvent evt w
+handleEvent evt world =
+  case world ^. currentScene of
+    Playing -> playingEvent evt world
+    MainMenu -> mainMenuEvent evt world
+    AteSelf -> ateSelfEvent evt world
 
 playingEvent :: G.Event -> World -> World
--- TODO: I swear this can be made much nicer
 playingEvent (G.EventKey key state _ _) world
   | keyDown $ G.Char 'w'              = switchDirection GoingUp
   | keyDown $ G.Char 's'              = switchDirection GoingDown
@@ -153,17 +152,17 @@ ateSelfEvent (G.EventKey key _ _ _) w
 ateSelfEvent _ w = w
 
 handleTime :: Float -> World -> World
-handleTime delta w@(World _ _ _ currentScene) =
-  case currentScene of
-    Playing -> playingTime delta w
-    MainMenu -> mainMenuTime w
-    AteSelf -> ateSelfTime w
+handleTime delta world =
+  case world ^. currentScene of
+    Playing -> playingTime delta world
+    MainMenu -> mainMenuTime world
+    AteSelf -> ateSelfTime world
 
 playingTime :: Float -> World -> World
 playingTime delta world =
   let
     foodAte = snakePosition (world ^. snake) == foodPosition world
-    newFoodPosition = if foodAte then (world ^. currentFoodPosition + 1) else world ^. currentFoodPosition
+    newFoodPosition = if foodAte then world ^. currentFoodPosition + 1 else world ^. currentFoodPosition
   in world { _snake = advanceSnake (world ^. snake) foodAte
            , _currentFoodPosition = newFoodPosition
            }
