@@ -55,7 +55,7 @@ type Snake = [Position]
 
 data World
   = World
-  { _snake                 :: Snake
+  { _snakePositions        :: Snake
   , _snakeDirection        :: Direction
   , _possibleFoodPositions :: [Position]
   , _currentFoodIndex      :: Int
@@ -76,9 +76,6 @@ mkWorld playerPosition foodPositions =
                                      , (G.Char 'q', Developer MoveFood)
                                      ]
 
-playerPosition :: World -> Position
-playerPosition world = head $ world ^. snake
-
 maybeChangeDirection :: Direction -> Direction -> Direction
 maybeChangeDirection currentDirection newDirection =
   case (currentDirection, newDirection) of
@@ -88,12 +85,10 @@ maybeChangeDirection currentDirection newDirection =
     (GoingDown, GoingDown)  -> GoingDown
     _ -> newDirection
 
-advance :: World -> Bool -> World
-advance world ateFood = world & snake .~ newSnake
-  where
-    newHead = playerPosition world G.+ fromDirection (world ^. snakeDirection)
-    positions = world ^. snake
-    newSnake = newHead : if ateFood then positions else init positions
+advance :: Snake -> Direction -> Bool -> Snake
+advance positions direction ateFood = newHead : newPositions
+  where newHead = head positions G.+ fromDirection direction
+        newPositions = if ateFood then positions else init positions
 
 -- Switches to specified Scene
 switchTo :: World -> Scene -> World
@@ -114,7 +109,7 @@ playingToPicture :: World -> G.Picture
 playingToPicture world = G.pictures [snakePicture, foodPicture]
   where
     segmentPicture x y = G.translate (x * segmentSizeF) (y * segmentSizeF) $ G.rectangleSolid segmentSizeF segmentSizeF
-    snakePicture = G.pictures $ map (\(x, y) -> G.color snakeColor $ segmentPicture x y) (world ^. snake)
+    snakePicture = G.pictures $ map (\(x, y) -> G.color snakeColor $ segmentPicture x y) (world ^. snakePositions)
     (foodX, foodY) = foodPosition world
     foodPicture = G.color foodColor $ segmentPicture foodX foodY
     segmentSizeF = fromIntegral segmentSize
@@ -168,12 +163,10 @@ handleTime delta world =
 playingTime :: Float -> World -> World
 playingTime delta world =
   let
-    foodAte = world ^. to playerPosition == world ^. to foodPosition
-    -- I wish we were inside of a Monad
-    foodIndex' = if foodAte then world ^. currentFoodIndex + 1 else world ^. currentFoodIndex
-    world' = advance world foodAte
-    world'' = world' & currentFoodIndex .~ foodIndex'
-  in world''
+    foodAte = head (world ^. snakePositions) == world ^. to foodPosition
+    newFoodIndex = if foodAte then world ^. currentFoodIndex + 1 else world ^. currentFoodIndex
+    newSnakePositions = advance (world ^. snakePositions) (world ^. snakeDirection) foodAte
+  in currentFoodIndex .~ newFoodIndex $ snakePositions .~ newSnakePositions $ world
 
 mainMenuTime :: World -> World
 mainMenuTime w = w
