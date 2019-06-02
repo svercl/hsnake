@@ -23,12 +23,8 @@ foodColor, snakeColor :: G.Color
 foodColor = G.violet
 snakeColor = G.orange
 
-data Scene
-  = Playing
-  | MainMenu
-  | AteSelf
-
 type Position = G.Point
+type Snake = G.Path
 
 _x :: Field1 s t a b => Lens s t a b
 _x = _1
@@ -37,20 +33,20 @@ _y :: Field2 s t a b => Lens s t a b
 _y = _2
 
 data Direction
-  = GoingLeft
-  | GoingDown
-  | GoingUp
-  | GoingRight
-  | GoingNowhere
+  = North
+  | South
+  | East
+  | West
+  | Nowhere
 
 fromDirection :: Direction -> G.Vector
 fromDirection dir =
   case dir of
-    GoingLeft    -> (-1.0, 0.0)
-    GoingDown    -> (0.0, -1.0)
-    GoingUp      -> (0.0, 1.0)
-    GoingRight   -> (1.0, 0.0)
-    GoingNowhere -> (0.0, 0.0)
+    North   -> ( 0.0,  1.0)
+    South   -> ( 0.0, -1.0)
+    East    -> ( 1.0,  0.0)
+    West    -> (-1.0,  0.0)
+    Nowhere -> ( 0.0,  0.0)
 
 data Developer
   = MoveFood
@@ -59,7 +55,10 @@ data Action
   = Direction Direction
   | Developer Developer
 
-type Snake = G.Path
+data Scene
+  = Playing
+  | MainMenu
+  | AteSelf
 
 data World
   = World
@@ -68,7 +67,7 @@ data World
   , _possibleFoodPositions :: [Position]
   , _currentFoodIndex      :: Int
   , _currentScene          :: Scene
-  , _keyBinds              :: M.Map G.Key Action
+  , _keyBinds              :: Map G.Key Action
   , _keys                  :: Set G.Key
   }
 
@@ -76,22 +75,23 @@ makeLenses ''World
 
 mkWorld :: Position -> [Position] -> World
 mkWorld playerPosition foodPositions =
-  World [playerPosition] GoingNowhere foodPositions 0 MainMenu initialKeybinds S.empty
+  World [playerPosition] Nowhere foodPositions 0 MainMenu initialKeybinds S.empty
   where initialKeybinds =
-          M.fromList [ (G.Char 'w', Direction GoingUp)
-                     , (G.Char 's', Direction GoingDown)
-                     , (G.Char 'a', Direction GoingLeft)
-                     , (G.Char 'd', Direction GoingRight)
+          M.fromList [ (G.Char 'w', Direction North)
+                     , (G.Char 's', Direction South)
+                     , (G.Char 'a', Direction West)
+                     , (G.Char 'd', Direction East)
+                     , (G.SpecialKey G.KeySpace, Direction Nowhere)
                      , (G.Char 'q', Developer MoveFood)
                      ]
 
 maybeChangeDirection :: Direction -> Direction -> Direction
 maybeChangeDirection currentDirection newDirection =
   case (currentDirection, newDirection) of
-    (GoingLeft, GoingRight) -> GoingLeft
-    (GoingRight, GoingLeft) -> GoingRight
-    (GoingUp, GoingDown)    -> GoingUp
-    (GoingDown, GoingDown)  -> GoingDown
+    (West, East)   -> West
+    (East, West)   -> East
+    (North, South) -> North
+    (South, North) -> South
     _ -> newDirection
 
 advance :: Snake -> Direction -> Bool -> Snake
@@ -104,15 +104,14 @@ switchTo :: World -> Scene -> World
 switchTo world newScene = world & currentScene .~ newScene
 
 foodPosition :: World -> Position
--- It's okay to use ^?! here because our list is infinite.
-foodPosition world = (world ^. possibleFoodPositions) ^?! ix (world ^. currentFoodIndex)
+foodPosition world = (world ^. possibleFoodPositions) !! (world ^. currentFoodIndex)
 
 worldToPicture :: World -> G.Picture
 worldToPicture world =
   case world ^. currentScene of
-    Playing -> playingToPicture world
+    Playing  -> playingToPicture world
     MainMenu -> mainMenuToPicture
-    AteSelf -> ateSelfToPicture
+    AteSelf  -> ateSelfToPicture
 
 playingToPicture :: World -> G.Picture
 playingToPicture world = G.pictures [snakePicture, foodPicture]
@@ -132,23 +131,32 @@ ateSelfToPicture = G.translate (-200) 0 $ G.scale 0.2 0.2 $ G.text "You ate your
 handleEvent :: G.Event -> World -> World
 handleEvent evt world =
   case world ^. currentScene of
-    Playing -> playingEvent evt world
+    Playing  -> playingEvent evt world
     MainMenu -> mainMenuEvent evt world
-    AteSelf -> ateSelfEvent evt world
+    AteSelf  -> ateSelfEvent evt world
 
 playingEvent :: G.Event -> World -> World
 playingEvent (G.EventKey key state _ _) world
-  | keyDown $ G.Char 'w'              = switchDirection GoingUp
-  | keyDown $ G.Char 's'              = switchDirection GoingDown
-  | keyDown $ G.Char 'a'              = switchDirection GoingLeft
-  | keyDown $ G.Char 'd'              = switchDirection GoingRight
+  | keyDown $ G.Char 'w'              = switchDirection North
+  | keyDown $ G.Char 's'              = switchDirection South
+  | keyDown $ G.Char 'a'              = switchDirection West
+  | keyDown $ G.Char 'd'              = switchDirection East
   | keyDown $ G.Char 'q'              = world & currentFoodIndex %~ succ
-  | keyDown $ G.SpecialKey G.KeySpace = switchDirection GoingNowhere
+  | keyDown $ G.SpecialKey G.KeySpace = switchDirection Nowhere
   | otherwise = world
   where
     keyDown what = key == what && state == G.Down
     switchDirection dir = world & snakeDirection %~ flip maybeChangeDirection dir
 playingEvent _ w = w
+
+-- he :: G.Event -> World -> World
+-- he (G.EventKey key state _ _) world
+--   | state == G.Down = world & keys %~ S.insert key
+--   | state == G.Up = world & keys %~ S.delete key
+--   | otherwise = world
+
+-- keyPressed :: World -> G.Key -> Bool
+-- keyPressed world key = S.member key (world ^. keys)
 
 mainMenuEvent :: G.Event -> World -> World
 mainMenuEvent (G.EventKey key _ _ _) w
