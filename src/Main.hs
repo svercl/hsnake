@@ -2,8 +2,10 @@
 module Main where
 
 import           Control.Lens
-import qualified Data.Map.Strict as M
 import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
+import           Data.Set (Set)
+import qualified Data.Set as S
 import qualified Graphics.Gloss.Data.Point.Arithmetic as G
 import qualified Graphics.Gloss.Interface.Pure.Game   as G
 import           System.Random (getStdGen, randomRs)
@@ -67,20 +69,21 @@ data World
   , _currentFoodIndex      :: Int
   , _currentScene          :: Scene
   , _keyBinds              :: M.Map G.Key Action
-  , _pressedKeys           :: [G.Key] -- TODO(bsvercl): Use something more efficient.
+  , _keys                  :: Set G.Key
   }
 
 makeLenses ''World
 
 mkWorld :: Position -> [Position] -> World
 mkWorld playerPosition foodPositions =
-  World [playerPosition] GoingNowhere foodPositions 0 MainMenu initialKeybinds []
-  where initialKeybinds = M.fromList [ (G.Char 'w', Direction GoingUp)
-                                     , (G.Char 's', Direction GoingDown)
-                                     , (G.Char 'a', Direction GoingLeft)
-                                     , (G.Char 'd', Direction GoingRight)
-                                     , (G.Char 'q', Developer MoveFood)
-                                     ]
+  World [playerPosition] GoingNowhere foodPositions 0 MainMenu initialKeybinds S.empty
+  where initialKeybinds =
+          M.fromList [ (G.Char 'w', Direction GoingUp)
+                     , (G.Char 's', Direction GoingDown)
+                     , (G.Char 'a', Direction GoingLeft)
+                     , (G.Char 'd', Direction GoingRight)
+                     , (G.Char 'q', Developer MoveFood)
+                     ]
 
 maybeChangeDirection :: Direction -> Direction -> Direction
 maybeChangeDirection currentDirection newDirection =
