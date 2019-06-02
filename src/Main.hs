@@ -3,9 +3,9 @@ module Main where
 
 import           Control.Lens
 import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
+import qualified Data.Map.Strict as Map
 import           Data.Set (Set)
-import qualified Data.Set as S
+import qualified Data.Set as Set
 import qualified Graphics.Gloss.Data.Point.Arithmetic as G
 import qualified Graphics.Gloss.Interface.Pure.Game   as G
 import           System.Random (getStdGen, randomRs)
@@ -75,15 +75,15 @@ makeLenses ''World
 
 mkWorld :: Position -> [Position] -> World
 mkWorld playerPosition foodPositions =
-  World [playerPosition] Nowhere foodPositions 0 MainMenu initialKeybinds S.empty
+  World [playerPosition] Nowhere foodPositions 0 MainMenu initialKeybinds Set.empty
   where initialKeybinds =
-          M.fromList [ (G.Char 'w', Direction North)
-                     , (G.Char 's', Direction South)
-                     , (G.Char 'a', Direction West)
-                     , (G.Char 'd', Direction East)
-                     , (G.SpecialKey G.KeySpace, Direction Nowhere)
-                     , (G.Char 'q', Developer MoveFood)
-                     ]
+          Map.fromList [ (G.Char 'w', Direction North)
+                       , (G.Char 's', Direction South)
+                       , (G.Char 'a', Direction West)
+                       , (G.Char 'd', Direction East)
+                       , (G.SpecialKey G.KeySpace, Direction Nowhere)
+                       , (G.Char 'q', Developer MoveFood)
+                       ]
 
 maybeChangeDirection :: Direction -> Direction -> Direction
 maybeChangeDirection currentDirection newDirection =
@@ -94,10 +94,31 @@ maybeChangeDirection currentDirection newDirection =
     (South, North) -> South
     _ -> newDirection
 
+-- TODO(bsvercl): This is the most imperative bullshit I've ever seen,
+-- but with Gloss screen coordinates it's a little difficult.
+-- I'm sure there's a better way; I just haven't found one quite yet.
+-- NOTE: HERE BE DRAGONS
+wrap :: Position -> Position
+wrap (x, y) = ( if x >= halfSegX
+                then -halfSegX
+                else if x <= -halfSegX
+                then halfSegX
+                else x
+              , if y >= halfSegY
+                then -halfSegY
+                else if y <= -halfSegY
+                then halfSegY
+                else y
+              )
+  where
+    halfSegX = fromIntegral $ div segmentsAcrossWidth 2
+    halfSegY = fromIntegral $ div segmentsAcrossHeight 2
+
 advance :: Snake -> Direction -> Bool -> Snake
 advance positions direction ateFood = newHead : newPositions
-  where newHead = head positions G.+ fromDirection direction
-        newPositions = if ateFood then positions else init positions
+  where
+    newHead = wrap $ head positions G.+ fromDirection direction
+    newPositions = if ateFood then positions else init positions
 
 -- Switches to specified Scene
 switchTo :: World -> Scene -> World
