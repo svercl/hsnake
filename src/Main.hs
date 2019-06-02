@@ -104,8 +104,8 @@ switchTo :: World -> Scene -> World
 switchTo world newScene = world & currentScene .~ newScene
 
 foodPosition :: World -> Position
--- TODO: Should be possible to use ^@. this funky looking thing
-foodPosition world = (world ^. possibleFoodPositions) !! (world ^. currentFoodIndex)
+-- It's okay to use ^?! here because our list is infinite.
+foodPosition world = (world ^. possibleFoodPositions) ^?! ix (world ^. currentFoodIndex)
 
 worldToPicture :: World -> G.Picture
 worldToPicture world =
