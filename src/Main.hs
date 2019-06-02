@@ -13,9 +13,6 @@ segmentSize = 25
 segmentsAcrossWidth = screenWidth `div` segmentSize
 segmentsAcrossHeight = screenHeight `div` segmentSize
 
-segmentSizeF :: Float
-segmentSizeF = fromIntegral segmentSize
-
 foodColor, snakeColor :: G.Color
 foodColor = G.violet
 snakeColor = G.orange
@@ -59,11 +56,13 @@ advanceSnake sn@(Snake positions direction) ateFood = sn { positions = newPositi
 
 changeDirection :: Snake -> Direction -> Snake
 changeDirection sn@(Snake _ currentDirection) newDirection
-  | currentDirection == GoingLeft && newDirection == GoingRight = sn { direction = currentDirection }
-  | currentDirection == GoingRight && newDirection == GoingLeft = sn { direction = currentDirection }
-  | currentDirection == GoingUp && newDirection == GoingDown = sn { direction = currentDirection }
-  | currentDirection == GoingDown && newDirection == GoingUp = sn { direction = currentDirection }
-  | otherwise = sn { direction = newDirection }
+  | eitherEqual GoingLeft GoingRight ||
+    eitherEqual GoingUp GoingDown    = sn { direction = currentDirection }
+  | otherwise                        = sn { direction = newDirection }
+  where
+    eitherEqual this that =
+      (currentDirection == this && newDirection == that) ||
+      (currentDirection == that && newDirection == this)
 
 snakePosition :: Snake -> Position
 snakePosition (Snake positions _) = head positions
@@ -81,30 +80,34 @@ foodPosition (World _ possible current) = possible !! current
 worldToPicture :: World -> G.Picture
 worldToPicture w@(World (Snake snakePositions _) _ _) = G.pictures [snakePicture, foodPicture]
   where
-    segmentPicture = G.rectangleSolid segmentSizeF segmentSizeF
-    snakePicture = G.pictures $ map (\(x, y) -> G.translate (x * segmentSizeF)
-                                                            (y * segmentSizeF)
-                                              $ G.color snakeColor segmentPicture) snakePositions
+    segmentPicture x y = G.translate (x * segmentSizeF) (y * segmentSizeF) $ G.rectangleSolid segmentSizeF segmentSizeF
+    snakePicture = G.pictures $ map (\(x, y) -> G.color snakeColor $ segmentPicture x y) snakePositions
     (foodX, foodY) = foodPosition w
-    foodPicture = G.translate (foodX * segmentSizeF) (foodY * segmentSizeF) $ G.color foodColor segmentPicture
+    foodPicture = G.color foodColor $ segmentPicture foodX foodY
+    segmentSizeF = fromIntegral segmentSize
 
 handleEvent :: G.Event -> World -> World
+-- TODO: I swear this can be made much nicer
 handleEvent (G.EventKey key state _ _) w@(World snake _ currentFoodPosition)
-  | key == G.Char 'w' && state == G.Down = w { snake = changeDirection snake GoingUp }
-  | key == G.Char 's' && state == G.Down = w { snake = changeDirection snake  GoingDown }
-  | key == G.Char 'a' && state == G.Down = w { snake = changeDirection snake GoingLeft }
-  | key == G.Char 'd' && state == G.Down = w { snake = changeDirection snake GoingRight }
-  | key == G.Char 'q' && state == G.Down = w { currentFoodPosition = succ currentFoodPosition }
-  | key == G.SpecialKey G.KeySpace && state == G.Down = w { snake = changeDirection snake GoingNowhere }
+  | keyDown $ G.Char 'w'              = w { snake = changeDirection snake GoingUp }
+  | keyDown $ G.Char 's'              = w { snake = changeDirection snake GoingDown }
+  | keyDown $ G.Char 'a'              = w { snake = changeDirection snake GoingLeft }
+  | keyDown $ G.Char 'd'              = w { snake = changeDirection snake GoingRight }
+  | keyDown $ G.Char 'q'              = w { currentFoodPosition = succ currentFoodPosition }
+  | keyDown $ G.SpecialKey G.KeySpace = w { snake = changeDirection snake GoingNowhere }
   | otherwise = w
+  where
+    keyDown what = key == what && state == G.Down
+-- Do nothing
 handleEvent _ w = w
 
 handleTime :: Float -> World -> World
 handleTime delta w@(World snake possibleFoodPositions currentFoodPosition) =
   let
     foodAte = snakePosition snake == foodPosition w
+    newFoodPosition = if foodAte then currentFoodPosition + 1 else currentFoodPosition
   in w { snake = advanceSnake snake foodAte
-       , currentFoodPosition = if foodAte then currentFoodPosition + 1 else currentFoodPosition
+       , currentFoodPosition = newFoodPosition
        }
 
 main :: IO ()
@@ -121,4 +124,4 @@ main = do
                          , currentFoodPosition = 0
                          }
     initialDisplay = G.InWindow "Snake" (screenWidth, screenHeight) (0, 0)
-  G.play initialDisplay G.white 15 initialWorld worldToPicture handleEvent handleTime
+  G.play initialDisplay G.white 10 initialWorld worldToPicture handleEvent handleTime
