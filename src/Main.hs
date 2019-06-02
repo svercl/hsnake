@@ -52,8 +52,6 @@ data World
   , _currentScene          :: Scene
   }
 
-type World' a = State World a
-
 makeLenses ''World
 
 mkWorld :: Position -> [Position] -> World
