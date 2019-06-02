@@ -2,7 +2,7 @@
 
 A simple game of Snake in Haskell.
 
-## Building
+## Building and running
 
 ```console
 > stack build
