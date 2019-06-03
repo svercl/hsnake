@@ -10,6 +10,9 @@ import qualified Graphics.Gloss.Data.Point.Arithmetic as G
 import qualified Graphics.Gloss.Interface.Pure.Game   as G
 import           System.Random (getStdGen, randomRs)
 
+-- TODO(bsvercl): The drawing is not exactly correct for anything.
+-- TODO(bsvercl): After a little refactoring, the food positions are not right, either.
+
 screenWidth, screenHeight :: Int
 screenWidth = 800
 screenHeight = 600
@@ -22,6 +25,11 @@ segmentsAcrossHeight = screenHeight `div` segmentSize
 foodColor, snakeColor :: G.Color
 foodColor = G.violet
 snakeColor = G.orange
+
+center :: Position
+center = ( fromIntegral $ div screenWidth 2
+         , fromIntegral $ div screenHeight 2
+         )
 
 type Position = G.Point
 type Snake = G.Path
@@ -94,25 +102,10 @@ maybeChangeDirection currentDirection newDirection =
     (South, North) -> South
     _ -> newDirection
 
--- TODO(bsvercl): This is the most imperative bullshit I've ever seen,
--- but with Gloss screen coordinates it's a little difficult.
--- I'm sure there's a better way; I just haven't found one quite yet.
--- NOTE: HERE BE DRAGONS
 wrap :: Position -> Position
-wrap (x, y) = ( if x >= halfSegX + 1
-                then -halfSegX
-                else if x <= -halfSegX
-                then halfSegX - 1
-                else x
-              , if y >= halfSegY + 1
-                then -halfSegY
-                else if y <= -halfSegY
-                then halfSegY - 1
-                else y
+wrap (x, y) = ( fromIntegral $ mod (floor x) segmentsAcrossWidth
+              , fromIntegral $ mod (floor y) segmentsAcrossHeight
               )
-  where
-    halfSegX = fromIntegral $ div segmentsAcrossWidth 2
-    halfSegY = fromIntegral $ div segmentsAcrossHeight 2
 
 advance :: Snake -> Direction -> Bool -> Snake
 advance positions direction ateFood = newHead : newPositions
@@ -128,26 +121,32 @@ foodPosition :: World -> Position
 foodPosition world = (world ^. possibleFoodPositions) !! (world ^. currentFoodIndex)
 
 worldToPicture :: World -> G.Picture
-worldToPicture world =
-  case world ^. currentScene of
-    Playing  -> playingToPicture world
-    MainMenu -> mainMenuToPicture
-    AteSelf  -> ateSelfToPicture
+worldToPicture world = G.translate (negate $ fromIntegral $ div screenWidth 2)
+                                   (negate $ fromIntegral $ div screenHeight 2) frame
+  where
+    frame =
+      case world ^. currentScene of
+        Playing  -> playingToPicture world
+        MainMenu -> mainMenuToPicture
+        AteSelf  -> ateSelfToPicture
 
 playingToPicture :: World -> G.Picture
 playingToPicture world = G.pictures [snakePicture, foodPicture]
   where
-    segmentPicture x y = G.translate (x * segmentSizeF) (y * segmentSizeF) $ G.rectangleSolid segmentSizeF segmentSizeF
-    snakePicture = G.pictures $ map (\(x, y) -> G.color snakeColor $ segmentPicture x y) (world ^. snakePositions)
-    foodPos = world & foodPosition
-    foodPicture = G.color foodColor $ segmentPicture (foodPos ^. _x) (foodPos ^. _y)
+    segmentPicture (x, y) = G.translate ((x * segmentSizeF) - (segmentSizeF / 2.0))
+                                        ((y * segmentSizeF) - (segmentSizeF / 2.0))
+                            $ G.rectangleSolid segmentSizeF segmentSizeF
+    snakePicture = G.pictures $ map (G.color snakeColor . segmentPicture) (world ^. snakePositions)
+    foodPicture = G.color foodColor $ segmentPicture (world & foodPosition) -- this works?
     segmentSizeF = fromIntegral segmentSize
 
 mainMenuToPicture :: G.Picture
-mainMenuToPicture = G.translate (-200) 0 $ G.scale 0.2 0.2 $ G.text "Welcome to Snake. Press SPACE to start."
+mainMenuToPicture = G.translate (x - 250.0) y $ G.scale 0.2 0.2 $ G.text "Welcome to Snake. Press SPACE to start."
+  where (x, y) = center
 
 ateSelfToPicture :: G.Picture
-ateSelfToPicture = G.translate (-200) 0 $ G.scale 0.2 0.2 $ G.text "You ate yourself! Why would you do that??"
+ateSelfToPicture = G.translate (x - 250.0) y $ G.scale 0.2 0.2 $ G.text "You ate yourself! Why would you do that??"
+  where (x, y) = center
 
 handleEvent :: G.Event -> World -> World
 handleEvent evt world =
@@ -217,11 +216,9 @@ main = do
   -- TODO(bsvercl): This is ugly, but it works.
   gen <- getStdGen
   let
-    maxWidth = (segmentsAcrossWidth `div` 2) - 1
-    randomXs = randomRs (-maxWidth, maxWidth) gen
-    maxHeight = (segmentsAcrossHeight `div` 2) - 1
-    randomYs = randomRs (-maxHeight, maxHeight) gen
+    randomXs = randomRs (0, segmentsAcrossWidth) gen
+    randomYs = randomRs (0, segmentsAcrossHeight) gen
     foodPositions = zip (map fromIntegral randomXs) (map fromIntegral randomYs)
-    initialWorld = mkWorld (0.0, 0.0) foodPositions
+    initialWorld = mkWorld center foodPositions
     initialDisplay = G.InWindow "Snake" (screenWidth, screenHeight) (0, 0)
   G.play initialDisplay G.white 10 initialWorld worldToPicture handleEvent handleTime
