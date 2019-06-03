@@ -221,12 +221,11 @@ playingTime :: Float -> World -> World
 playingTime _ world =
   let
     snake = world ^. snakePositions
-    ateSelf = didEatSelf snake
     foodAte = head snake == world ^. to foodPosition
     foodIndex = world ^. currentFoodIndex
     newFoodIndex = if foodAte then succ foodIndex else foodIndex
     newSnakePositions = advance snake (world ^. snakeDirection) foodAte
-  in if ateSelf
+  in if didEatSelf snake
      then snakePositions .~ [world ^. initialSnakePosition] $ switchTo world AteSelf
      else currentFoodIndex .~ newFoodIndex $ snakePositions .~ newSnakePositions $ world
 
