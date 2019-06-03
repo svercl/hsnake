@@ -2,14 +2,14 @@
 module Main where
 
 import           Control.Lens
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
-import           Data.Maybe (fromMaybe)
-import           Data.Set (Set)
-import qualified Data.Set as Set
+import           Data.Map.Strict                      (Map)
+import qualified Data.Map.Strict                      as Map
+import           Data.Maybe                           (fromMaybe)
+import           Data.Set                             (Set)
+import qualified Data.Set                             as Set
 import qualified Graphics.Gloss.Data.Point.Arithmetic as G
 import qualified Graphics.Gloss.Interface.Pure.Game   as G
-import           System.Random (getStdGen, randomRs)
+import           System.Random                        (getStdGen, randomRs)
 
 -- TODO(bsvercl): The drawing is not exactly correct for anything.
 -- TODO(bsvercl): After a little refactoring, the food positions are not right, either.
@@ -115,7 +115,7 @@ wrapAround (x, y) (w, h) = ( fromIntegral $ mod (floor x) w
 
 -- | Wraps a position around the screen
 wrap :: Position -> Position
-wrap pt = wrapAround pt (segmentsAcrossWidth, segmentsAcrossHeight)
+wrap = flip wrapAround (segmentsAcrossWidth, segmentsAcrossHeight)
 
 advance :: Snake -> Direction -> Bool -> Snake
 advance positions direction ateFood = newHead : newPositions
