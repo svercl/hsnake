@@ -72,14 +72,14 @@ data Scene
 
 data World
   = World
-  { _snakePositions        :: Snake
-  , _initialSnakePosition  :: Position
-  , _snakeDirection        :: Direction
-  , _possibleFoodPositions :: [Position]
-  , _currentFoodIndex      :: Int
+  { _snakePositions        :: Snake            -- | Positions occupied by the snake
+  , _initialSnakePosition  :: Position         -- | Used for resetting after eating self
+  , _snakeDirection        :: Direction        -- | Direction of snake
+  , _possibleFoodPositions :: [Position]       -- | Infinite list of food positions
+  , _currentFoodIndex      :: Int              -- | We use this to step through the list
   , _currentScene          :: Scene
   , _keyBinds              :: Map G.Key Action
-  , _keys                  :: Set G.Key
+  , _keys                  :: Set G.Key        -- | Currently pressed keys
   }
 
 makeLenses ''World
