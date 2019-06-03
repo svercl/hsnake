@@ -4,6 +4,7 @@ module Main where
 import           Control.Lens
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import           Data.Maybe (fromMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Graphics.Gloss.Data.Point.Arithmetic as G
@@ -72,6 +73,7 @@ data Scene
 data World
   = World
   { _snakePositions        :: Snake
+  , _initialSnakePosition  :: Position
   , _snakeDirection        :: Direction
   , _possibleFoodPositions :: [Position]
   , _currentFoodIndex      :: Int
@@ -85,7 +87,7 @@ makeLenses ''World
 -- | Convenience function for creating a world
 mkWorld :: Position -> [Position] -> World
 mkWorld playerPosition foodPositions =
-  World [playerPosition] Nowhere foodPositions 0 MainMenu initialKeybinds Set.empty
+  World [playerPosition] playerPosition Nowhere foodPositions 0 MainMenu initialKeybinds Set.empty
   where initialKeybinds =
           Map.fromList [ (G.Char 'w', Direction North)
                        , (G.Char 's', Direction South)
@@ -95,15 +97,15 @@ mkWorld playerPosition foodPositions =
                        , (G.Char 'q', Developer MoveFood)
                        ]
 
--- | Changes the direction only when they are not opposites
-maybeChangeDirection :: Direction -> Direction -> Direction
+-- | Returns a new direction only when they are not opposites
+maybeChangeDirection :: Direction -> Direction -> Maybe Direction
 maybeChangeDirection currentDirection newDirection =
   case (currentDirection, newDirection) of
-    (West, East)   -> West
-    (East, West)   -> East
-    (North, South) -> North
-    (South, North) -> South
-    _ -> newDirection
+    (West, East)   -> Nothing
+    (East, West)   -> Nothing
+    (North, South) -> Nothing
+    (South, North) -> Nothing
+    _              -> Just newDirection
 
 -- | Wraps a position around size
 wrapAround :: Position -> Size -> Position
@@ -120,6 +122,10 @@ advance positions direction ateFood = newHead : newPositions
   where
     newHead = wrap $ head positions G.+ fromDirection direction
     newPositions = if ateFood then positions else init positions
+
+-- | Does snake intersect with itself?
+didEatSelf :: Snake -> Bool
+didEatSelf positions = head positions `elem` tail positions
 
 -- | Switches to specified Scene
 switchTo :: World -> Scene -> World
@@ -145,12 +151,12 @@ worldToPicture world =
 playingToPicture :: World -> G.Picture
 playingToPicture world = G.pictures [snakePicture, foodPicture]
   where
+    segmentSizeF = fromIntegral segmentSize
     segmentPicture (x, y) = G.translate ((x * segmentSizeF) - (segmentSizeF / 2.0))
                                         ((y * segmentSizeF) - (segmentSizeF / 2.0))
                             $ G.rectangleSolid segmentSizeF segmentSizeF
     snakePicture = G.pictures $ map (G.color snakeColor . segmentPicture) (world ^. snakePositions)
-    foodPicture = G.color foodColor $ segmentPicture (world & foodPosition) -- this works?
-    segmentSizeF = fromIntegral segmentSize
+    foodPicture = G.color foodColor $ segmentPicture (world ^. to foodPosition)
 
 -- | Draws main menu scene
 mainMenuToPicture :: G.Picture
@@ -180,7 +186,7 @@ playingEvent (G.EventKey key state _ _) world
   | otherwise = world
   where
     keyDown what = key == what && state == G.Down
-    switchDirection dir = world & snakeDirection %~ flip maybeChangeDirection dir
+    switchDirection dir = world & snakeDirection %~ \current -> fromMaybe current (maybeChangeDirection current dir)
 playingEvent _ w = w
 
 -- he :: G.Event -> World -> World
@@ -207,17 +213,22 @@ ateSelfEvent _ w = w
 handleTime :: Float -> World -> World
 handleTime delta world =
   case world ^. currentScene of
-    Playing -> playingTime delta world
+    Playing  -> playingTime delta world
     MainMenu -> mainMenuTime world
-    AteSelf -> ateSelfTime world
+    AteSelf  -> ateSelfTime world
 
 playingTime :: Float -> World -> World
-playingTime delta world =
+playingTime _ world =
   let
-    foodAte = head (world ^. snakePositions) == world ^. to foodPosition
-    newFoodIndex = if foodAte then world ^. currentFoodIndex + 1 else world ^. currentFoodIndex
-    newSnakePositions = advance (world ^. snakePositions) (world ^. snakeDirection) foodAte
-  in currentFoodIndex .~ newFoodIndex $ snakePositions .~ newSnakePositions $ world
+    snake = world ^. snakePositions
+    ateSelf = didEatSelf snake
+    foodAte = head snake == world ^. to foodPosition
+    foodIndex = world ^. currentFoodIndex
+    newFoodIndex = if foodAte then succ foodIndex else foodIndex
+    newSnakePositions = advance snake (world ^. snakeDirection) foodAte
+  in if ateSelf
+     then snakePositions .~ [world ^. initialSnakePosition] $ switchTo world AteSelf
+     else currentFoodIndex .~ newFoodIndex $ snakePositions .~ newSnakePositions $ world
 
 mainMenuTime :: World -> World
 mainMenuTime w = w
