@@ -32,6 +32,7 @@ center = ( fromIntegral $ div screenWidth 2
          )
 
 type Position = G.Point
+type Size = (Int, Int)
 type Snake = G.Path
 
 _x :: Field1 s t a b => Lens s t a b
@@ -81,6 +82,7 @@ data World
 
 makeLenses ''World
 
+-- | Convenience function for creating a world
 mkWorld :: Position -> [Position] -> World
 mkWorld playerPosition foodPositions =
   World [playerPosition] Nowhere foodPositions 0 MainMenu initialKeybinds Set.empty
@@ -93,6 +95,7 @@ mkWorld playerPosition foodPositions =
                        , (G.Char 'q', Developer MoveFood)
                        ]
 
+-- | Changes the direction only when they are not opposites
 maybeChangeDirection :: Direction -> Direction -> Direction
 maybeChangeDirection currentDirection newDirection =
   case (currentDirection, newDirection) of
@@ -102,10 +105,15 @@ maybeChangeDirection currentDirection newDirection =
     (South, North) -> South
     _ -> newDirection
 
+-- | Wraps a position around size
+wrapAround :: Position -> Size -> Position
+wrapAround (x, y) (w, h) = ( fromIntegral $ mod (floor x) w
+                           , fromIntegral $ mod (floor y) h
+                           )
+
+-- | Wraps a position around the screen
 wrap :: Position -> Position
-wrap (x, y) = ( fromIntegral $ mod (floor x) segmentsAcrossWidth
-              , fromIntegral $ mod (floor y) segmentsAcrossHeight
-              )
+wrap pt = wrapAround pt (segmentsAcrossWidth, segmentsAcrossHeight)
 
 advance :: Snake -> Direction -> Bool -> Snake
 advance positions direction ateFood = newHead : newPositions
@@ -113,16 +121,19 @@ advance positions direction ateFood = newHead : newPositions
     newHead = wrap $ head positions G.+ fromDirection direction
     newPositions = if ateFood then positions else init positions
 
--- Switches to specified Scene
+-- | Switches to specified Scene
 switchTo :: World -> Scene -> World
 switchTo world newScene = world & currentScene .~ newScene
 
+-- | The current food position
 foodPosition :: World -> Position
 foodPosition world = (world ^. possibleFoodPositions) !! (world ^. currentFoodIndex)
 
+-- | Draws the world
 worldToPicture :: World -> G.Picture
-worldToPicture world = G.translate (negate $ fromIntegral $ div screenWidth 2)
-                                   (negate $ fromIntegral $ div screenHeight 2) frame
+worldToPicture world =
+  G.translate (negate $ fromIntegral $ div screenWidth  2)
+              (negate $ fromIntegral $ div screenHeight 2) frame
   where
     frame =
       case world ^. currentScene of
@@ -130,6 +141,7 @@ worldToPicture world = G.translate (negate $ fromIntegral $ div screenWidth 2)
         MainMenu -> mainMenuToPicture
         AteSelf  -> ateSelfToPicture
 
+-- | Draws game scene
 playingToPicture :: World -> G.Picture
 playingToPicture world = G.pictures [snakePicture, foodPicture]
   where
@@ -140,10 +152,12 @@ playingToPicture world = G.pictures [snakePicture, foodPicture]
     foodPicture = G.color foodColor $ segmentPicture (world & foodPosition) -- this works?
     segmentSizeF = fromIntegral segmentSize
 
+-- | Draws main menu scene
 mainMenuToPicture :: G.Picture
 mainMenuToPicture = G.translate (x - 250.0) y $ G.scale 0.2 0.2 $ G.text "Welcome to Snake. Press SPACE to start."
   where (x, y) = center
 
+-- | Draws game over scene
 ateSelfToPicture :: G.Picture
 ateSelfToPicture = G.translate (x - 250.0) y $ G.scale 0.2 0.2 $ G.text "You ate yourself! Why would you do that??"
   where (x, y) = center
