@@ -199,13 +199,13 @@ playingEvent _ w = w
 -- keyPressed world key = S.member key (world ^. keys)
 
 mainMenuEvent :: G.Event -> World -> World
-mainMenuEvent (G.EventKey key _ _ _) w
+mainMenuEvent (G.EventKey key G.Down _ _) w
   | key == G.SpecialKey G.KeySpace = switchTo w Playing
   | otherwise = w
 mainMenuEvent _ w = w
 
 ateSelfEvent :: G.Event -> World -> World
-ateSelfEvent (G.EventKey key _ _ _) w
+ateSelfEvent (G.EventKey key G.Down _ _) w
   | key == G.SpecialKey G.KeySpace = switchTo w MainMenu
   | otherwise = w
 ateSelfEvent _ w = w
