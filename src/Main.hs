@@ -85,9 +85,9 @@ data World
 makeLenses ''World
 
 -- | Convenience function for creating a world
-mkWorld :: Position -> [Position] -> World
-mkWorld playerPosition foodPositions =
-  World [playerPosition] playerPosition Nowhere foodPositions 0 MainMenu initialKeybinds Set.empty
+mkWorld :: [Position] -> World
+mkWorld foodPositions =
+  World [center] center Nowhere foodPositions 0 MainMenu initialKeybinds Set.empty
   where initialKeybinds =
           Map.fromList [ (G.Char 'w', Direction North)
                        , (G.Char 's', Direction South)
@@ -109,8 +109,8 @@ maybeChangeDirection currentDirection newDirection =
 
 -- | Wraps a position around size
 wrapAround :: Position -> Size -> Position
-wrapAround (x, y) (w, h) = ( fromIntegral $ mod (floor x) w
-                           , fromIntegral $ mod (floor y) h
+wrapAround (x, y) (w, h) = ( fromIntegral $ mod (floor x) (w + 1)
+                           , fromIntegral $ mod (floor y) (h + 1)
                            )
 
 -- | Wraps a position around the screen
@@ -243,6 +243,6 @@ main = do
     randomXs = randomRs (0, segmentsAcrossWidth) gen
     randomYs = randomRs (0, segmentsAcrossHeight) gen
     foodPositions = zip (map fromIntegral randomXs) (map fromIntegral randomYs)
-    initialWorld = mkWorld center foodPositions
+    initialWorld = mkWorld foodPositions
     initialDisplay = G.InWindow "Snake" (screenWidth, screenHeight) (0, 0)
   G.play initialDisplay G.white 10 initialWorld worldToPicture handleEvent handleTime
